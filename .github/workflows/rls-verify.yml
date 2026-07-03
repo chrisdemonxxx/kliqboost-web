@@ -1,0 +1,39 @@
+name: rls-verify
+
+# Credential-free verification that the KLI-3 schema + RLS policies hold.
+# Runs the owner-isolation harness against a stock Postgres service container
+# (no Supabase project / secrets required), so schema or policy regressions
+# fail the build.
+
+on:
+  push:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/rls-verify.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/rls-verify.yml'
+
+jobs:
+  rls-verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run RLS verification harness
+        env:
+          PGPASSWORD: postgres
+          PSQL_CONN: "host=127.0.0.1 port=5432 user=postgres dbname=postgres"
+        run: bash supabase/tests/run.sh

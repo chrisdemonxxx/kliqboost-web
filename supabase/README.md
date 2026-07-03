@@ -13,7 +13,10 @@ supabase/
 │   ├── 20260703120000_core_schema.sql   # users, brand_profiles, content_items, subscriptions + triggers
 │   └── 20260703120100_rls_policies.sql  # RLS enabled + owner-scoped policies on every customer table
 └── tests/
-    └── rls_verification.sql             # simulates two users, asserts owner-isolation
+    ├── rls_verification.sql             # simulates two users, asserts owner-isolation
+    ├── _local_shim.sql                  # Supabase primitives (auth.uid(), roles) for stock Postgres — verification only
+    ├── _local_grants.sql                # replicates Supabase's default table grants — verification only
+    └── run.sh                           # applies migrations + shim, seeds users, runs the harness
 ```
 
 ## Data model
@@ -40,13 +43,39 @@ supabase db push
 # Option B: paste each migration into the Supabase dashboard SQL editor, in order
 ```
 
-## Verifying RLS (needs a live project)
+## Verifying RLS — credential-free (verified ✅)
 
-1. Sign up two users through the app (or the Supabase dashboard).
-2. Put their UUIDs into `tests/rls_verification.sql` (`:alice`, `:bob`).
-3. Run it in the SQL editor / `psql`. A clean run ending in
-   `PASS: RLS owner-isolation verified` means RLS holds; any leak raises an
-   exception. The harness rolls back, leaving no test data.
+RLS is **verified end-to-end without any Supabase credentials**, against stock
+PostgreSQL, using a minimal shim for the Supabase primitives (`auth.uid()`, the
+`authenticated`/`service_role` roles, and the default table grants):
+
+```bash
+supabase/tests/run.sh                    # bootstraps an ephemeral Postgres
+# ...or against an existing database / CI service container:
+PSQL_CONN="host=… port=… user=… dbname=…" supabase/tests/run.sh
+```
+
+A clean run ends in `PASS: RLS owner-isolation verified` and exits 0; any leak
+raises an exception and exits non-zero. The harness runs in a transaction and
+rolls back, leaving no data behind. It is wired into CI
+(`.github/workflows/rls-verify.yml`), so schema/RLS regressions fail the build.
+
+**What the run proves** (all four customer tables): an authenticated user sees
+only their own rows; cannot read or write another user's rows (`WITH CHECK`
+enforced); and cannot self-insert `subscriptions` (billing is service_role-only).
+A negative control — the same harness with RLS policies removed — fails as
+expected (`Bob can see Alice's brand_profiles`), confirming the assertions have
+teeth rather than passing vacuously.
+
+> Verified on PostgreSQL 18.1. The shim files (`_local_*.sql`) are **test-only**
+> and are never applied to a real Supabase project — Supabase provides those
+> primitives natively.
+
+### Against a real Supabase project (post-launch)
+
+The same `rls_verification.sql` runs unchanged in the Supabase SQL editor after
+`supabase db push`; just seed two `auth.users` (via the app sign-up flow or the
+dashboard) whose ids match `:alice` / `:bob`, or edit those two `\set` lines.
 
 ## Still TODO (blocked on credentials + canonical-repo decision)
 
