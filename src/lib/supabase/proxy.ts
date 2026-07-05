@@ -4,7 +4,7 @@ import { getSupabaseEnv } from "./env";
 
 // Routes that require a signed-in user. Anything under these prefixes redirects
 // to /login when there is no session.
-const PROTECTED_PREFIXES = ["/brand-profile"];
+const PROTECTED_PREFIXES = ["/brand-profile", "/studio"];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
