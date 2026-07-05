@@ -71,6 +71,11 @@ begin
   end;
 end $$;
 
-raise notice 'PASS: RLS owner-isolation verified for all customer tables';
+-- RAISE is a PL/pgSQL statement, so the final success notice must live inside a
+-- DO block — a bare top-level `raise` is a syntax error in psql/plain SQL.
+do $$
+begin
+  raise notice 'PASS: RLS owner-isolation verified for all customer tables';
+end $$;
 
 rollback;  -- leave no test data behind

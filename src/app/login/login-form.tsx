@@ -5,8 +5,22 @@ import { signIn, signUp, type AuthState } from "@/lib/actions/auth";
 
 const INITIAL: AuthState = { error: null };
 
+type Mode = "signin" | "signup";
+
 export function LoginForm() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<Mode>("signin");
+  // Key the inner form by `mode` so useActionState (and any stale error it
+  // holds) is remounted fresh when the user toggles between sign-in/sign-up.
+  return <LoginFormInner key={mode} mode={mode} setMode={setMode} />;
+}
+
+function LoginFormInner({
+  mode,
+  setMode,
+}: {
+  mode: Mode;
+  setMode: (mode: Mode) => void;
+}) {
   const action = mode === "signin" ? signIn : signUp;
   const [state, formAction, pending] = useActionState(action, INITIAL);
 

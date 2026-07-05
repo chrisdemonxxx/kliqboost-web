@@ -40,7 +40,18 @@ export async function signUp(
     return { error: "Password must be at least 8 characters." };
 
   const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return { error: error.message };
+  if (error) {
+    // Don't leak whether an email is already registered — a verbatim
+    // "User already registered" lets an attacker enumerate accounts. Collapse
+    // duplicate-registration errors into a generic message; keep specific text
+    // for validation-style failures (weak password, invalid email, etc.).
+    if (/already\s*registered|already\s*exists|already\s*in\s*use/i.test(error.message)) {
+      return {
+        error: "Check your inbox to confirm your email, then sign in to continue.",
+      };
+    }
+    return { error: error.message };
+  }
 
   // When email confirmation is enabled, no session is returned until the user
   // confirms. Surface that instead of redirecting into a protected route.
@@ -56,6 +67,13 @@ export async function signUp(
 
 export async function signOut() {
   const supabase = await createClient();
-  if (supabase) await supabase.auth.signOut();
+  if (supabase) {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore sign-out failures (e.g. transient network error) — still send
+      // the user to /login rather than leaving them on an error page.
+    }
+  }
   redirect("/login");
 }
