@@ -1,8 +1,12 @@
 name: Deploy to GitHub Pages
 
+# Manual-only. The app now uses Next.js Server Actions (brand-profile CRUD,
+# AI generation) and server-side auth, which are incompatible with a static
+# export ("Server Actions are not supported with static export") — so this
+# workflow fails on every push to main. Production deploys go to Vercel
+# (see deploy.yml). Kept as workflow_dispatch for anyone experimenting with a
+# static marketing mirror; recommend full removal as a follow-up.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 # Allow one concurrent deployment, cancelling in-progress runs.
