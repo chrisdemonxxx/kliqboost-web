@@ -10,11 +10,19 @@ Postgres/Supabase SQL that applies unchanged to whichever repo becomes canonical
 ```
 supabase/
 ├── migrations/
-│   ├── 20260703120000_core_schema.sql   # users, brand_profiles, content_items, subscriptions + triggers
-│   └── 20260703120100_rls_policies.sql  # RLS enabled + owner-scoped policies on every customer table
+│   ├── 20260703120000_core_schema.sql        # users, brand_profiles, content_items, subscriptions + triggers
+│   ├── 20260703120100_rls_policies.sql       # RLS enabled + owner-scoped policies on every customer table
+│   └── 20260705120000_brand_profile_fields.sql  # KLI-4: product/audience/messaging columns + one-profile-per-user
 └── tests/
-    └── rls_verification.sql             # simulates two users, asserts owner-isolation
+    └── rls_verification.sql                  # simulates two users, asserts owner-isolation
 ```
+
+### `brand_profiles` columns (after KLI-4)
+
+`id`, `user_id`, `name`, `description`, `products_services`, `target_audience`,
+`brand_voice` (tone of voice), `key_messages text[]`, `banned_phrases text[]`,
+`website_url`, `logo_url`, timestamps. A unique index on `user_id` keeps the
+profile screen a simple upsert (one brand profile per user for the MVP).
 
 ## Data model
 
@@ -48,13 +56,24 @@ supabase db push
    `PASS: RLS owner-isolation verified` means RLS holds; any leak raises an
    exception. The harness rolls back, leaving no test data.
 
-## Still TODO (blocked on credentials + canonical-repo decision)
+## Auth wiring (done — KLI-4)
 
-- **Auth wiring** in the Next.js app: `@supabase/ssr` client, session
-  middleware, protected `/dashboard` routes, sign-up/sign-in/sign-out handlers.
-  Deferred deliberately — this repo runs a pre-release **Next.js 16.2.10** whose
-  conventions differ from training data (see `AGENTS.md`); the middleware/session
-  APIs must be written against `node_modules/next/dist/docs/`, and there is
-  nothing to run them against until Supabase creds exist.
+The Next.js app now has the `@supabase/ssr` layer, written against this repo's
+pre-release **Next.js 16.2.10** docs (see `AGENTS.md`):
+
+- `src/lib/supabase/{client,server,proxy,env}.ts` — browser/server clients.
+- `src/proxy.ts` — Next 16 renamed `middleware` → **`proxy`**; refreshes the
+  session cookie every request and guards `/brand-profile`.
+- `src/app/login/` — email/password sign-up, sign-in; `signOut` in the topbar.
+- `src/app/brand-profile/` — the KLI-4 CRUD screen (upsert against `brand_profiles`).
+
+All of it degrades gracefully when Supabase env vars are absent (home route
+still renders; protected routes redirect to `/login`), so the app builds and
+runs credential-free. Live end-to-end auth needs real credentials.
+
+## Still TODO (blocked on credentials)
+
 - Wire `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` /
-  `SUPABASE_SERVICE_ROLE_KEY` into the deploy env.
+  `SUPABASE_SERVICE_ROLE_KEY` into `.env.local` (see `.env.example`) and the
+  deploy env, then `supabase db push` the three migrations.
+- Live-verify sign-up → create/edit/view brand profile, and the RLS harness.
