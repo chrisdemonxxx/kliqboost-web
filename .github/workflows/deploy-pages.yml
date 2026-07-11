@@ -1,11 +1,15 @@
 name: Deploy to GitHub Pages
 
-# Manual-only. The app now uses Next.js Server Actions (brand-profile CRUD,
-# AI generation) and server-side auth, which are incompatible with a static
-# export ("Server Actions are not supported with static export") — so this
-# workflow fails on every push to main. Production deploys go to Vercel
-# (see deploy.yml). Kept as workflow_dispatch for anyone experimenting with a
-# static marketing mirror; recommend full removal as a follow-up.
+# This repo is retired (KLI-15): kliqboost ships from chrisdemonxxx/kliqboost-ai
+# to https://kliqboost-app.vercel.app.
+#
+# This workflow used to publish a static export of this app. That export has been
+# impossible since the app adopted Server Actions ("Server Actions are not supported
+# with static export"), so the Pages URL sat frozen serving an old scaffold whose
+# landing page has no working signup — a dead end at a public, shareable URL.
+#
+# It now publishes a single redirect page to the canonical app. There is no Next
+# build left to break. Reverting this file restores the old (already broken) export.
 on:
   workflow_dispatch:
 
@@ -19,30 +23,36 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  CANONICAL_APP_URL: https://kliqboost-app.vercel.app
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build static export
-        env:
-          STATIC_EXPORT: "1"
-          # Project Pages site is served from https://<owner>.github.io/<repo>/
-          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
-        run: pnpm build
+      - name: Build redirect site
+        run: |
+          mkdir -p out
+          cat > out/index.html <<HTML
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <title>kliqboost has moved</title>
+              <meta name="robots" content="noindex" />
+              <link rel="canonical" href="${CANONICAL_APP_URL}/" />
+              <meta http-equiv="refresh" content="0; url=${CANONICAL_APP_URL}/" />
+            </head>
+            <body>
+              <p>kliqboost has moved to <a href="${CANONICAL_APP_URL}/">${CANONICAL_APP_URL}</a>.</p>
+              <script>
+                window.location.replace("${CANONICAL_APP_URL}/");
+              </script>
+            </body>
+          </html>
+          HTML
+          # Pages serves 404.html for unknown paths, so deep links redirect too.
+          cp out/index.html out/404.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
