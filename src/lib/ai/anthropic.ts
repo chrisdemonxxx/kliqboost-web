@@ -58,6 +58,16 @@ export async function callClaude(
     return { ok: false, error: "The AI declined to generate this content." };
   }
 
+  // A max_tokens stop still returns HTTP 200 with usable-looking text, but the
+  // draft is cut off mid-sentence. Publishing it would present a truncated
+  // draft as a finished one, so fail instead of returning partial copy.
+  if (data.stop_reason === "max_tokens") {
+    return {
+      ok: false,
+      error: "The draft was cut off before it finished. Try a shorter piece.",
+    };
+  }
+
   const text = (data.content ?? [])
     .filter((b) => b.type === "text" && typeof b.text === "string")
     .map((b) => b.text)
